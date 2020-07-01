@@ -51,7 +51,7 @@ private:
      */
     const char *xml2json_text_additional_name = "#text";
     const char *xml2json_attribute_name_prefix = "@";
-    const bool xml2json_numeric_support = true;
+    const bool xml2json_numeric_support = false; //无法转类似[0, 65535]字符串
 
     xml_document<> x2j_xmldoc;
     Document x2j_jsonDoc;
@@ -178,11 +178,16 @@ private:
 
         int xjxXmlType = parse_xjx_objName(objName);
         switch (xjxXmlType) {
-          case XJX_ATTR_XMLTYPE:
+        case XJX_ATTR_XMLTYPE:
             parentNode->append_attribute(j2x_xmlDoc.allocate_attribute((objName+1), "null"));
             break;
-          default:
+            //修补 JSON 文件, 当对象是NULL对象时,转化错误
+        case XJX_TEXT_XMLTYPE:
             newNode = j2x_xmlDoc.allocate_node(rapidxml::node_element,(objName+1));
+            parentNode->append_node(newNode);
+            break;
+        default:
+            newNode = j2x_xmlDoc.allocate_node(rapidxml::node_element,(objName));
             parentNode->append_node(newNode);
         }
     }
@@ -194,7 +199,7 @@ private:
 
         int xjxXmlType = parse_xjx_objName(objName);
         switch (xjxXmlType) {
-          case XJX_ATTR_XMLTYPE:
+        case XJX_ATTR_XMLTYPE:
             parentNode->append_attribute(j2x_xmlDoc.allocate_attribute((objName+1), j2x_xmlDoc.allocate_string(objValue)));
             break;
         case XJX_TEXT_XMLTYPE:
@@ -569,11 +574,11 @@ public:
     /*
      * json2xml function
      */
-    string json2xml_file(char *fileName)
+    string json2xml_file(char *json_file)
     {
         char readBuffer[65536] = {};
 
-        FILE* fp = fopen(fileName, "r");
+        FILE* fp = fopen(json_file, "r");
         if (!fp)
             return "";
 
@@ -596,9 +601,9 @@ public:
         return s;
     }
 
-    string json2xml(char *json)
+    string json2xml(char *json_str)
     {
-        j2x_jsonDoc.Parse(json);
+        j2x_jsonDoc.Parse(json_str);
         if (j2x_jsonDoc.HasParseError()) {
             ParseErrorCode errCode = j2x_jsonDoc.GetParseError();
             cout <<  "HasParseError ErrCode:" << errCode << " ErrOffset:" << j2x_jsonDoc.GetErrorOffset() << " ErrMessage:" << GetParseError_En(errCode) << endl;
@@ -623,8 +628,15 @@ public:
     {
         x2j_jsonDoc.SetObject();
         Document::AllocatorType& allocator = x2j_jsonDoc.GetAllocator();
-
         x2j_xmldoc.parse<0> (const_cast<char *>(xml_str));
+
+//        try
+//        {
+//            x2j_xmldoc.parse<0> (const_cast<char *>(xml_str));
+//        }catch (const std::runtime_error& e){
+//            return "";
+//        }
+
         xml_node<> *xmlnode_chd;
 
         for(xmlnode_chd = x2j_xmldoc.first_node(); xmlnode_chd; xmlnode_chd = xmlnode_chd->next_sibling())
